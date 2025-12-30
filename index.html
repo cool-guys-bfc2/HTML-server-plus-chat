@@ -1,87 +1,85 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Echo Chat</title>
+    <title>WS Touch Game</title>
     <style>
-        :root { --bg: #f0f2f5; --msg-me: #0084ff; --msg-them: #e4e6eb; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); display: flex; justify-content: center; height: 100vh; margin: 0; }
-        #chat-container { width: 100%; max-width: 500px; background: white; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        #header { padding: 15px; background: #fff; border-bottom: 1px solid #ddd; font-weight: bold; text-align: center; }
-        #status { font-size: 0.8em; color: #666; }
-        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .message { max-width: 70%; padding: 10px 15px; border-radius: 18px; font-size: 14px; line-height: 1.4; }
-        .me { align-self: flex-end; background: var(--msg-me); color: white; border-bottom-right-radius: 4px; }
-        .them { align-self: flex-start; background: var(--msg-them); color: black; border-bottom-left-radius: 4px; }
-        #input-area { padding: 15px; border-top: 1px solid #ddd; display: flex; gap: 10px; }
-        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; outline: none; }
-        button { background: var(--msg-me); color: white; border: none; padding: 0 20px; border-radius: 20px; cursor: pointer; }
+        body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+        canvas { background: #333; border: 2px solid #555; margin-top: 10px; max-width: 95vw; }
+        
+        /* D-Pad Styling */
+        .controls { display: grid; grid-template-areas: ". up ." "left . right" ". down ."; gap: 10px; margin-top: 20px; }
+        .btn { width: 60px; height: 60px; background: #444; border: 2px solid #888; color: white; font-size: 24px; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; user-select: none; -webkit-user-select: none; }
+        .btn:active { background: #666; transform: scale(0.95); }
+        .up { grid-area: up; } .left { grid-area: left; } .right { grid-area: right; } .down { grid-area: down; }
     </style>
 </head>
 <body>
+    <div id="status">Connecting...</div>
+    <canvas id="gameCanvas" width="500" height="300"></canvas>
 
-<div id="chat-container">
-    <div id="header">
-        Live Echo Chat
-        <div id="status">Connecting...</div>
+    <!-- On-screen Navigation -->
+    <div class="controls">
+        <div class="btn up" id="ctrl-up">▲</div>
+        <div class="btn left" id="ctrl-left">◀</div>
+        <div class="btn right" id="ctrl-right">▶</div>
+        <div class="btn down" id="ctrl-down">▼</div>
     </div>
-    <div id="messages"></div>
-    <form id="input-area">
-        <input type="text" id="msgInput" placeholder="Type a message..." autocomplete="off">
-        <input id="name"/>
-        <button type="submit">Send</button>
-    </form>
-</div>
 
 <script>
-    const statusEl = document.getElementById('status');
-    const messagesEl = document.getElementById('messages');
-    const inputForm = document.getElementById('input-area');
-    const msgInput = document.getElementById('msgInput');
-    const name = document.getElementById("name");
-    // 1. Initialize WebSocket Connection
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const status = document.getElementById('status');
+
+    let player = { x: 235, y: 135 };
+    let ghost = { x: 235, y: 135 };
+    const speed = 8;
+    const keys = {};
+
+    // WebSocket Setup
     const socket = new WebSocket('wss://ws.ifelse.io/');
-
-    // 2. Handle Connection State
-    socket.onopen = () => {
-        statusEl.innerText = '● Connected';
-        statusEl.style.color = 'green';
+    socket.onopen = () => { status.innerText = "● Connected"; status.style.color = "lime"; };
+    socket.onmessage = (e) => { 
+        try { const data = JSON.parse(e.data); ghost.x = data.x; ghost.y = data.y; } catch(err){}
     };
 
-    socket.onclose = () => {
-        statusEl.innerText = '○ Disconnected';
-        statusEl.style.color = 'red';
-    };
-
-    // 3. Listen for Incoming (Echoed) Messages
-    socket.onmessage = (event) => {
-        addMessage(event.data["name"]+":"+event.data["value"], 'them')
-    };
-
-    // 4. Send Message Logic
-    inputForm.onsubmit = (e) => {
-        e.preventDefault();
-        const text = msgInput.value.trim();
-        const sender = name.value.trim();
-        if (text && socket.readyState === WebSocket.OPEN) {
-            socket.send({"name":sender,"value":text}); // Send to server
-            addMessage("me"+text, 'me'); // Show locally
-            msgInput.value = '';
+    // Movement Logic
+    function move(dx, dy) {
+        player.x += dx;
+        player.y += dy;
+        // Keep within bounds
+        player.x = Math.max(0, Math.min(canvas.width - 30, player.x));
+        player.y = Math.max(0, Math.min(canvas.height - 30, player.y));
+        
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ x: player.x, y: player.y }));
         }
-    };
-
-    // Helper to append UI bubbles
-    function addMessage(text, side) {
-        const div = document.createElement('div');
-        div.className = `message ${side}`;
-        div.textContent = text;
-        if text!="undefined:undefined" {
-          messagesEl.appendChild(div);
-        }
-        messagesEl.scrollTop = messagesEl.scrollHeight; // Auto-scroll
     }
-</script>
 
+    // Button Listeners
+    document.getElementById('ctrl-up').onmousedown = () => move(0, -speed);
+    document.getElementById('ctrl-down').onmousedown = () => move(0, speed);
+    document.getElementById('ctrl-left').onmousedown = () => move(-speed, 0);
+    document.getElementById('ctrl-right').onmousedown = () => move(speed, 0);
+    
+    // Keyboard Fallback
+    window.onkeydown = (e) => {
+        if(e.key === "ArrowUp") move(0, -speed);
+        if(e.key === "ArrowDown") move(0, speed);
+        if(e.key === "ArrowLeft") move(-speed, 0);
+        if(e.key === "ArrowRight") move(speed, 0);
+    };
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Draw Ghost (Echo)
+        ctx.fillStyle = 'deepskyblue'; ctx.globalAlpha = 0.4;
+        ctx.fillRect(ghost.x, ghost.y, 30, 30);
+        // Draw Player
+        ctx.fillStyle = 'red'; ctx.globalAlpha = 1.0;
+        ctx.fillRect(player.x, player.y, 30, 30);
+        requestAnimationFrame(draw);
+    }
+    draw();
+</script>
 </body>
 </html>
