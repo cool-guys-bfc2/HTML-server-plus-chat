@@ -66,7 +66,7 @@
         const sender = name.value.trim();
         if (text && socket.readyState === WebSocket.OPEN) {
             socket.send({"name":sender,"value":text}); // Send to server
-            addMessage(text, 'me'); // Show locally
+            addMessage("me"+text, 'me'); // Show locally
             msgInput.value = '';
         }
     };
