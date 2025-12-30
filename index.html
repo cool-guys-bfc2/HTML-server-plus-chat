@@ -56,7 +56,7 @@
 
     // 3. Listen for Incoming (Echoed) Messages
     socket.onmessage = (event) => {
-        addMessage(event.data["name"]+":"+event.data["value"], 'them');
+        addMessage(event.data["name"]+":"+event.data["value"], 'them')
     };
 
     // 4. Send Message Logic
